@@ -230,10 +230,6 @@ gt_align_caption <- function(left, right) {
 caption_1 = gt_align_caption("<b>AD</b>: Attacking Defenseman", "<b>DD</b>: Defending Defenseman")
 caption_2 = gt_align_caption("Data from <b>hockeyR</b>", "Amrit Vignesh | <b>@avsportsanalyst</b>")
 
-lineups <- lapply(lineups, function(df) {
-  transform(df, code = deparse(substitute(df)))
-})
-
 apply_gt <- function(df, code) {
   df %>% gt() %>% 
     gt_img_rows(columns = team_logo_espn) %>%
