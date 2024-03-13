@@ -8,9 +8,9 @@ library(fuzzyjoin)
 library(cowplot)
 library(ggplot2)
 
-nhl_stats <- get_skater_stats_hr(2024)
+nhl_stats <- get_skater_stats_hr(2024) 
 
-centers <- nhl_stats %>% filter(position == "C")
+centers <- nhl_stats %>% filter(position == "C" | position == "F")
 
 stats_c <- centers %>%
   select(goals, assists, hr_point_shares, faceoff_win_percent)
@@ -19,11 +19,11 @@ stats_c$faceoff_win_percent[which(is.na(stats_c$faceoff_win_percent))] <- 0
 
 pca_c <- prcomp(stats_c, scale = TRUE)
 weights_c <- pca_c$rotation[,1]
-weighted_avg_c <- rowSums(stats_c * weights_c)
+weighted_avg_c <- rowSums(stats_c * abs(weights_c))
 centers$metric <- weighted_avg_c
 
 left_wingers <- nhl_stats %>%
-  filter(position == "LW") 
+  filter(position == "LW" | position == "F") 
 
 stats_lw <- left_wingers %>%
   select(goals, assists, hr_point_shares, shooting_percent)
@@ -32,22 +32,20 @@ stats_lw$shooting_percent[which(is.na(stats_lw$shooting_percent))] <- 0
 
 pca_lw <- prcomp(stats_lw, scale = TRUE)
 weights_lw <- pca_lw$rotation[,1]
-weighted_avg_lw <- rowSums(stats_lw * weights_lw)
+weighted_avg_lw <- rowSums(stats_lw * abs(weights_lw))
 left_wingers$metric <- weighted_avg_lw
 
 right_wingers <- nhl_stats %>%
-  filter(position == "RW") 
+  filter(position == "RW" | position == "F") 
 
 stats_rw <- right_wingers %>%
   select(goals, assists, hr_point_shares, shooting_percent)
 
 stats_rw$shooting_percent[which(is.na(stats_rw$shooting_percent))] <- 0
 
-stats_rw <- scale(stats_rw)
-
 pca_rw <- prcomp(stats_rw, scale = TRUE)
 weights_rw <- pca_rw$rotation[,1]
-weighted_avg_rw <- rowSums(stats_rw * weights_rw)
+weighted_avg_rw <- rowSums(stats_rw * abs(weights_rw))
 right_wingers$metric <- weighted_avg_rw
 
 att_defense <- nhl_stats %>%
@@ -56,11 +54,9 @@ att_defense <- nhl_stats %>%
 stats_ad <- att_defense %>%
   select(goals, assists, hr_point_shares)
 
-stats_ad <- scale(stats_ad)
-
 pca_ad <- prcomp(stats_ad, scale = TRUE)
 weights_ad <- pca_ad$rotation[,1]
-weighted_avg_ad <- rowSums(stats_ad * weights_ad)
+weighted_avg_ad <- rowSums(stats_ad * abs(weights_ad))
 att_defense$metric <- weighted_avg_ad
 
 def_defense <- nhl_stats %>%
@@ -69,18 +65,22 @@ def_defense <- nhl_stats %>%
 stats_dd <- def_defense %>%
   select(blocks, hits, time_on_ice)
 
-stats_dd <- scale(stats_dd)
-
 pca_dd <- prcomp(stats_dd, scale = TRUE)
 weights_dd <- pca_dd$rotation[,1]
-weighted_avg_dd <- rowSums(stats_dd * weights_dd)
+weighted_avg_dd <- rowSums(stats_dd * abs(weights_dd))
 def_defense$metric <- weighted_avg_dd
 
-centers[,31] <- as.data.frame(apply(centers[,31], 2, function(x) rank(x) / length(x) * 100))
-left_wingers[,31] <- as.data.frame(apply(left_wingers[,31], 2, function(x) rank(x) / length(x) * 100))
-right_wingers[,31] <- as.data.frame(apply(right_wingers[,31], 2, function(x) rank(x) / length(x) * 100))
-att_defense[,31] <- as.data.frame(apply(att_defense[,31], 2, function(x) rank(x) / length(x) * 100))
-def_defense[,31] <- as.data.frame(apply(def_defense[,31], 2, function(x) rank(x) / length(x) * 100))
+centers <- centers %>% group_by(player) %>% summarize(team_abbr = last(team_abbr), metric = sum(metric))
+left_wingers <- left_wingers %>% group_by(player) %>% summarize(team_abbr = last(team_abbr), metric = sum(metric))
+right_wingers <- right_wingers %>% group_by(player) %>% summarize(team_abbr = last(team_abbr), metric = sum(metric))
+att_defense <- att_defense %>% group_by(player) %>% summarize(team_abbr = last(team_abbr), metric = sum(metric))
+def_defense <- def_defense %>% group_by(player) %>% summarize(team_abbr = last(team_abbr), metric = sum(metric))
+
+centers[,3] <- as.data.frame(apply(centers[,3], 2, function(x) rank(x) / length(x) * 100))
+left_wingers[,3] <- as.data.frame(apply(left_wingers[,3], 2, function(x) rank(x) / length(x) * 100))
+right_wingers[,3] <- as.data.frame(apply(right_wingers[,3], 2, function(x) rank(x) / length(x) * 100))
+att_defense[,3] <- as.data.frame(apply(att_defense[,3], 2, function(x) rank(x) / length(x) * 100))
+def_defense[,3] <- as.data.frame(apply(def_defense[,3], 2, function(x) rank(x) / length(x) * 100))
 
 goalies <- get_goalie_stats_hr(2024) %>% filter(!is.na(goals_saved_above_average))
 
@@ -89,35 +89,30 @@ stats_g <- goalies %>%
 
 pca_g <- prcomp(stats_g, scale = TRUE)
 weights_g <- pca_g$rotation[,1]
-weighted_avg_g <- rowSums(stats_g * weights_g)
+weighted_avg_g <- rowSums(stats_g * abs(weights_g))
 goalies$metric <- weighted_avg_g
 
-goalies[,29] <- as.data.frame(apply(goalies[,29], 2, function(x) rank(x) / length(x) * 100))
+goalies <- goalies %>% group_by(player) %>% summarize(team_abbr = last(team_abbr), metric = sum(metric))
+
+goalies[,3] <- as.data.frame(apply(goalies[,3], 2, function(x) rank(x) / length(x) * 100))
 
 centers <- centers %>%
-  select(player, team_abbr, metric) %>%
   arrange(-metric)
 
 left_wingers <- left_wingers %>%
-  select(player, team_abbr, metric) %>%
   arrange(-metric)
 
 right_wingers <- right_wingers %>%
-  select(player, team_abbr, metric) %>%
   arrange(-metric)
 
 att_defense <- att_defense %>%
-  select(player, team_abbr, metric) %>%
   arrange(-metric)
 
 def_defense <- def_defense %>%
-  select(player, team_abbr, metric) %>%
   arrange(-metric)
 
 goalies <- goalies %>%
-  select(player, team_abbr, metric) %>%
   arrange(-metric)
-
 
 logos <- team_logos_colors %>%
   select(team_abbr, team_logo_espn) %>%
@@ -152,16 +147,13 @@ total_final <- stringdist_left_join(total, players, by = c("player", "team_abbr"
   group_by(player.x, team_abbr, pos) %>%
   filter(player.dist == min(player.dist) & team_abbr.dist == min(team_abbr.dist)) 
 
-duplicated_nondefense <- total_final[total_final$player.y %in% names(table(total_final$player.y)[table(total_final$player.y) >= 2]), ] %>% filter(pos != "AD" & pos != "DD")
-duplicated_defense <- total_final[total_final$player.y %in% names(table(total_final$player.y)[table(total_final$player.y) >= 3]), ]
+total_final <- total_final %>% filter(!(player.x %in% c("Blake Wheeler", "Ben Meyers", "Robert Bortuzzo", "Taylor Hall")))
 
-duplicated_mishaps <- rbind(duplicated_nondefense, duplicated_defense) %>% filter(player.dist != 0)
-
-total_final <- anti_join(total_final, duplicated_mishaps)
-
-total_final <- total_final %>% select(player = player.x, team, nationality, pos, metric)
+total_final <- total_final %>% ungroup() %>% select(player = player.x, team, nationality, pos, metric)
 
 total_final$nationality[which(total_final$nationality == "su")] <- "ru"
+
+total_final$nationality[which(total_final$player == "William Nylander")] <- "se"
 
 nationality_dfs <- split(total_final, total_final$nationality)
 
@@ -175,10 +167,10 @@ select_lineup <- function(df) {
   winger_count <- 14 - nrow(c)
   indiv_winger_count_og <- as.integer(winger_count/2)
   
-  lw <- df %>% filter(pos == "LW") %>% slice_head(n = indiv_winger_count_og)
-  rw <- df %>% filter(pos == "RW") %>% slice_head(n = indiv_winger_count_og)
+  lw <- df %>% filter(pos == "LW", !(player %in% c$player)) %>% slice_head(n = indiv_winger_count_og)
+  rw <- df %>% filter(pos == "RW", !(player %in% c$player), !(player %in% lw$player)) %>% slice_head(n = indiv_winger_count_og)
   
-  rest_of_wingers <- df %>% filter(pos == "LW" | pos == "RW") %>% filter(!(player %in% lw$player | player %in% rw$player)) %>% arrange(-metric)
+  rest_of_wingers <- df %>% filter(pos == "LW" | pos == "RW") %>% filter(!(player %in% c$player | player %in% lw$player | player %in% rw$player)) %>% arrange(-metric)
   
   other_winger <- data.frame()
   
@@ -213,7 +205,9 @@ logos$team_abbr[which(logos$team_abbr == "VGK")] <- "VEG"
 
 lineups <- lapply(lineups, function(df) {
   left_join(df, logos, by = c("team" = "team_abbr")) %>%
-    mutate(headshot_link = paste0("http://nhl.bamcontent.com/images/headshots/current/168x168/", id, ".jpg")) %>%
+    mutate(team = ifelse(team == "VEG", "VGK", team)) %>%
+    mutate(headshot_link = paste0("https://assets.nhle.com/mugs/nhl/20232024/", team, "/", id, ".png")) %>%
+    filter(!((team == "NYI" & id == "8478427") | (team == "CAR" & id == "8480222"))) %>%
     select(headshot_link, player, team_logo_espn, pos, metric) %>%
     ungroup()
 })
@@ -227,11 +221,20 @@ gt_align_caption <- function(left, right) {
   return(caption)
 }
 
-caption_1 = gt_align_caption("<b>AD</b>: Attacking Defenseman", "<b>DD</b>: Defending Defenseman")
-caption_2 = gt_align_caption("Data from <b>hockeyR</b>", "Amrit Vignesh | <b>@avsportsanalyst</b>")
+caption = gt_align_caption("Data from <b>hockeyR</b>", "Amrit Vignesh | <b>@avsportsanalyst</b>")
 
 apply_gt <- function(df, code) {
-  df %>% gt() %>% 
+  df_1 <- df %>% filter(pos %in% c("C", "AD", "G"))
+  df_2 <- df %>% filter(pos %in% c("LW", "RW", "DD"))
+  df_1$pos[which(df_1$pos == "C")] <- "Centers"
+  df_1$pos[which(df_1$pos == "AD")] <- "Attacking Defensemen"
+  df_1$pos[which(df_1$pos == "G")] <- "Goalies"
+  df_2$pos[which(df_2$pos == "LW")] <- "Left Wingers"
+  df_2$pos[which(df_2$pos == "RW")] <- "Right Wingers"
+  df_2$pos[which(df_2$pos == "DD")] <- "Defending Defensemen"
+  df_1 <- df_1 %>% group_by(pos)
+  df_2 <- df_2 %>% group_by(pos)
+  table_1 <- df_1 %>% gt() %>% 
     gt_img_rows(columns = team_logo_espn) %>%
     gt_img_rows(columns = headshot_link) %>%
     gt_theme_538() %>%
@@ -260,22 +263,52 @@ apply_gt <- function(df, code) {
         columns = player
       )
     ) %>%
-    tab_source_note(html(caption_1)) %>%
-    tab_source_note(html(caption_2)) %>%
+    tab_options(
+      row_group.background.color = "black",
+      row_group.font.weight = "bold",
+      row_group.text_transform = "capitalize"
+    ) %>%
+    tab_style(
+      style = cell_text(align = "center", style = "italic"),
+      locations = cells_row_groups(everything()))
+  table_2 <- df_2 %>% gt() %>% 
+    gt_img_rows(columns = team_logo_espn) %>%
+    gt_img_rows(columns = headshot_link) %>%
+    gt_theme_538() %>%
+    cols_align(
+      align = "center",
+      columns = c(headshot_link, player, team_logo_espn, pos, metric)
+    ) %>%
+    gt_hulk_col_numeric(metric) %>%
+    cols_label(
+      headshot_link = md(""),
+      player = md("**Player**"),
+      team_logo_espn = md("**Team**"),
+      pos = md("**Position**"),
+      metric = md("**Metric**")
+    ) %>%
+    opt_align_table_header(align = "center") %>%
+    tab_style(
+      style = list(
+        cell_text(weight = "bold")
+      ),
+      locations = cells_body(
+        columns = player
+      )
+    ) %>%
+    tab_options(
+      row_group.background.color = "black",
+      row_group.font.weight = "bold",
+      row_group.text_transform = "capitalize"
+    ) %>%
+    tab_style(
+      style = cell_text(align = "center", style = "italic"),
+      locations = cells_row_groups(everything())
+    ) %>%
+    tab_source_note(html(caption)) %>%
     tab_options(source_notes.font.size = 12)
+  gt_two_column_layout(list(table_1, table_2), "viewer")
 }
 
 gt_tables <- Map(apply_gt, lineups, names(lineups))
 
-for (i in 1:length(gt_tables)) {
-  gtsave(gt_tables[[i]], paste0(names(lineups)[i], ".png"), vwidth = 1000, vheight = 2500)
-}
-
-ca <- ggdraw() + draw_image("ca.png")
-us <- ggdraw() + draw_image("us.png")
-se <- ggdraw() + draw_image("se.png")
-ru <- ggdraw() + draw_image("ru.png")
-fi <- ggdraw() + draw_image("fi.png")
-
-grid <- plot_grid(ca, us, se, ru, fi, nrow = 1, rel_widths = c(1, 1, 1, 1, 1), rel_heights = c(1, 1, 1, 1, 1))
-ggsave("all.png", grid)
